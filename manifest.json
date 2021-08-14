@@ -1,0 +1,59 @@
+{
+    "name": "Rarity Extractor",
+    "short_name": "Rarity Extractor",
+    "version": "1.0.2",
+    "description": "",
+    "permissions": [
+        "webNavigation",
+        "tabs",
+        "activeTab",
+        "notifications",
+        "storage",
+        "*://opensea.io/*",
+        "*://rarity.tools/*"
+
+    ],
+    "browser_action": {
+        "browser_style": false,
+        "default_title": "Rarity Extractor",
+        "default_icon": {
+            "16": "images/capture-16x.png",
+            "32": "images/capture-32x.png",
+            "48": "images/capture-48x.png",
+            "128": "images/capture-128x.png"
+        }
+    },
+    "background": {
+        "scripts": [
+            "js/lib/common.js",
+            "js/background/background.js"
+        ],
+        "persistent": true
+    },
+    "content_scripts": [
+        {
+            "js": [
+                "js/lib/common.js",
+                "js/lib/arrive/arrive.min.js",
+                "js/content/app.js",
+                "js/content/content.js"
+            ],
+            "matches": [
+                "*://opensea.io/*",
+                "http://*/*",
+                "https://*/*"
+            ],
+            "run_at": "document_start",
+            "all_frames": true
+        }
+    ],
+    "icons": {
+        "16": "images/capture-16x.png",
+        "32": "images/capture-32x.png",
+        "48": "images/capture-48x.png",
+        "128": "images/capture-128x.png"
+    },
+    "manifest_version": 2,
+    "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
+    "web_accessible_resources": []
+}
