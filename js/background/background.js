@@ -4,6 +4,7 @@ App.extracted = []
 App.extractionTabs = {}
 App.runtimePort = null
 App.running = false
+App.extractedCount = 0
 
 /**
  * 
@@ -73,6 +74,8 @@ function findIndex(x, entry) {
     return false
 }
 
+
+
 chrome.runtime.onConnect.addListener(function (port) {
     App.runtimePort = port;
     App.runtimePort.onMessage.addListener(function (message, details) {
@@ -96,11 +99,10 @@ chrome.runtime.onConnect.addListener(function (port) {
                         let entry = message.results[i],
                             index = App.extracted.findIndex(x => findIndex(x, entry));
                         if (index > -1) {
-                            App.extracted = App.extracted.filter((_,i)=>i != index)
+                            App.extracted = App.extracted.filter((_, i) => i != index)
                         }
                         App.extracted.push(entry)
                     }
-                    setLocalStorage("extracted", App.extracted);
                     sendExtractedResults()
                     break;
                 case 'NEW_TASK':
@@ -140,5 +142,15 @@ chrome.runtime.onConnect.addListener(function (port) {
 chrome.tabs.onRemoved.addListener(onTabRemoved);
 
 getLocalStorage('extracted').then(extracted => {
-    if (extracted) App.extracted = extracted.filter(x => x);
+    if (extracted) {
+        App.extracted = extracted.filter(x => x)
+        App.extractedCount = App.extracted.length
+    }
 })
+loadCollections()
+setTimeout(function () {
+    if(App.extracted.length > App.extractedCount){
+        setLocalStorage("extracted", App.extracted);
+        App.extractedCount = App.extracted.length
+    }
+},1000)
