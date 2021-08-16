@@ -542,10 +542,10 @@ async function rairity_extract_assets(options) {
     let { pageIndicator, totalPage, nextSelector } = await getAssetPaginator()
     if (!pageIndicator) return;
 
+    let payload = []
     do {
         const assets = document.querySelectorAll(assetLinkSelector)
         if (!assets.length) break;
-        let payload = []
         for (let i = 0; i < assets.length; i++) {
 
             const asset = assets[i];
@@ -567,19 +567,20 @@ async function rairity_extract_assets(options) {
                 collection: options.collection
             })
         }
-        if (payload.length) {
-            postMessageToExtension({
-                cmd: "TASK_RESULT",
-                results: payload
-            })
-        }
         nextSelector.click()
-        await sleep(250)
+        await sleep(100)
 
     } while (!(parseInt(pageIndicator.value) == parseInt(totalPage)) && parsingState == 1);
+
+    
+    if (payload.length) {
+        postMessageToExtension({
+            cmd: "TASK_RESULT",
+            results: payload
+        })
+    }
+
     let btn = document.querySelector("#parse_collection")
-    btn.innerText = "PARSE COLLECTION"
+    btn.innerText = "PARSED"
     btn.setAttribute('state', "0")
-
-
 }
