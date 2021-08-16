@@ -9,6 +9,7 @@
         "activeTab",
         "notifications",
         "storage",
+        "unlimitedStorage",
         "*://opensea.io/*",
         "*://rarity.tools/*"
 
