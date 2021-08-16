@@ -31,7 +31,13 @@ var agent = {
 }
 
 var parsedCollections = [],
-    assetCollections = {},
+    assetCollections = {
+        collections: [],
+        projects: {
+            list: [],
+            lookup: {}
+        }
+    },
     parsingState = 0
 
 
@@ -45,35 +51,34 @@ async function afterWindowLoaded() {
 
     switch (location.hostname) {
         case "opensea.io":
-            if (current_path.length == 2 && ["assets", 'collection'].includes(current_path[0])) {
-                parsedCollections = [current_path[1]]
-                registerAssetDetection()
-                postMessageToExtension({
-                    cmd: "ASSET_LOADED"
-                })
-                break;
-            }
-            if (current_path.length == 1 && ["assets", 'collection'].includes(current_path[0])) {
-                registerAssetDetection()
-                postMessageToExtension({
-                    cmd: "ASSET_LOADED"
-                })
-                break;
-            }
-            if (current_path[0] === "accounts") {
-                registerAssetDetection()
-                postMessageToExtension({
-                    cmd: "ASSET_LOADED"
-                })
-                break;
+            // Due to CORS Blocking retrieve collections  from storage
+            assetCollections = await getLocalStorage("collections", assetCollections)
+            postMessageToExtension({ cmd: "ASSET_LOADED" })
+            registerAssetDetection()
+
+            // If is this is a collection listing page insert button to rarity.tools
+            if (
+                current_path.length == 2 &&
+                current_path[0] === "collection" &&
+                isCollection(current_path[1])
+
+            ) {
+                showOpenRarityBtn(current_path[1])
             }
             break;
         case "rarity.tools":
+            // Load and update collections
             assetCollections = await loadCollections()
-            if (current_path.length === 1 && isCollectionPage(current_path[0])) {
+            if (current_path.length === 1 && isCollection(current_path[0])) {
                 showExtractionBtn(current_path[0])
+                break;
             }
+            break;
         case "rarity.guide":
+            if (current_path.length == 0) {
+                showExtractionBtnRequests()
+                break;
+            }
             if (current_path.pop() === "ranking") {
                 showExtractionBtnRank(current_path[0])
             }
@@ -114,22 +119,26 @@ function postMessageToExtension(message, callback = null) {
     agent.send(message, callback);
 }
 
-async function loadCollections() {
-    let response = await fetch("https://collections.rarity.tools/static/collections.json", {
-        "headers": {
-            "accept": "application/json, text/plain, */*",
-            "sec-ch-ua": "\"Chromium\";v=\"92\", \" Not A;Brand\";v=\"99\", \"Google Chrome\";v=\"92\"",
-            "sec-ch-ua-mobile": "?0"
-        },
-        "referrer": "https://rarity.tools/",
-        "referrerPolicy": "strict-origin-when-cross-origin",
-        "body": null,
-        "method": "GET",
-        "mode": "cors",
-        "credentials": "omit"
-    })
-    response = await response.json()
-    return response
+/**
+ * 
+ * @param {String} collection 
+ */
+async function showOpenRarityBtn(collection) {
+    let infoDiv = null
+    while (infoDiv == null) {
+        await sleep(1000)
+        infoDiv = document.querySelector('div[class*="InfoContainerreact__InfoContainer"]')
+    }
+    const template = infoDiv.querySelector('div').cloneNode(1)
+
+    template.querySelector('div[font-size="14px"]').innerText = ''
+    template.querySelector('h3').innerText = "Open on rarity"
+    const a = template.querySelector('a')
+    a.href = `https://rarity.tools/${collection}`
+    a.setAttribute('target', '_blank')
+
+    infoDiv.appendChild(template)
+
 }
 
 /**
@@ -137,8 +146,8 @@ async function loadCollections() {
  * @param {String} collection 
  * @returns 
  */
-function isCollectionPage(collection) {
-    return assetCollections.collections.map(x => x.id).includes(collection.trim())
+function isCollection(collection) {
+    return assetCollections.projects.list.includes(collection.trim())
 }
 
 /**
@@ -214,16 +223,75 @@ async function showExtractionBtnRank() {
     btn.classList.add("button", "is-info")
 
     btn.addEventListener("click", function () {
-        guide_extract_assets().then(x => {
+        guide_extract_assets(document).then(x => {
             btn.innerText = "Project Parsed"
         })
-
         btn.innerText = "Parsing..."
+    })
+    div.prepend(btn)
+}
 
+/**
+ * 
+ * @param {String} link 
+ * @param {DOMParser} parser 
+ */
+async function extractRairityRequest(link, parser) {
+    return new Promise((resolve, reject) => {
+        fetch(link).then(response => {
+            if (response.redirected) return reject("Request Redirected");
+            return response.text()
+        })
+            .then(text => {
+                const doc = parser.parseFromString(text, 'text/html');
+                guide_extract_assets(doc)
+                    .then(() => {
+                        resolve(true)
+                    })
+                    .catch(e => {
+                        reject(e)
+                    })
+
+            })
+            .catch(e => reject(e))
     })
 
-    div.prepend(btn)
+}
 
+/**
+ * 
+ */
+async function showExtractionBtnRequests() {
+    const btn = document.createElement("button")
+    const div = document.querySelector("body > section:nth-child(4) > div")
+    const arrayId = Array.from(div.querySelectorAll('table>tbody>tr')).map(tr => tr.querySelector('td').innerText)
+    const parser = new DOMParser();
+
+    btn.innerText = "Parse Rarity"
+    btn.classList.add("button", "is-info")
+    btn.setAttribute("state", "0")
+
+    btn.addEventListener("click", async function (event) {
+        if (btn.getAttribute("state") === "1") return;
+
+        btn.setAttribute("state", "1")
+        for (let i = 0; i < arrayId.length; i++) {
+            let x = arrayId[i];
+            let link = `https://rarity.guide/project/${x}/ranking`
+
+            btn.innerText = `Parsing Project ID:${x}`
+            try {
+                await extractRairityRequest(link, parser)
+                await sleep(100)
+            } catch (e) {
+
+            }
+        }
+        btn.innerText = "Projects Parsed"
+        btn.setAttribute("state", "0")
+
+    })
+    div.prepend(btn);
 }
 
 /**
@@ -245,22 +313,23 @@ function findDetail(entry, tokenId, collection, project_name) {
     }
     return (entry.tokenId === tokenId && entry.collection === collection)
 }
+
 /**
  * 
- * @param {Array<Object>} details 
+ * @param {HTMLElement} node 
+*  @param {Array<Object>} details 
+ * @returns 
  */
-async function updateAssets(details) {
+async function _doUpdateListingPage(assetNode, details) {
+    return new Promise((resolve, reject) => {
+        let { tokenId, project_name } = getAssetTokenId(assetNode)
+        let collection = getAssetCollection(assetNode)
 
-    const assets = getAssets();
-    assets.forEach(asset => {
-        let { tokenId, project_name } = getAssetTokenId(asset)
-        let collection = getAssetCollection(asset)
-
-        if (!tokenId || !collection) return;
+        if (!tokenId || !collection) return resolve(true);
 
         let info = details.find(x => findDetail(x, tokenId, collection, project_name))
         if (info) {
-            const node = asset.getElementsByClassName('AssetCardFooter--collection')[0].parentElement
+            const node = assetNode.getElementsByClassName('AssetCardFooter--collection')[0].parentElement
             const rank = document.createElement('div')
 
             rank.innerText = info.rank
@@ -271,7 +340,42 @@ async function updateAssets(details) {
             x = node.querySelector('#rank')
             if (!x) node.appendChild(rank);
         }
-    });
+        resolve(true)
+    })
+}
+
+// @TODO Complete function
+async function _doUpdateDetailPage(assetNode, details) {
+    let { tokenId, project_name } = getAssetTokenId(assetNode)
+    let collection = getAssetCollection(assetNode)
+
+    if (!tokenId || !collection) return resolve(true);
+
+    let info = details.find(x => findDetail(x, tokenId, collection, project_name))
+    d = document.querySelector('div[class="item--wrapper"]')
+    c = d.querySelector('a[class*="CollectionLink--link"]').href.split('/').pop()
+    x = d.querySelector('section[class="item--counts"]')
+    y = `<div style="display: flex;">
+            <div>
+                <span style="color: red;">
+                    #6897
+                </span>
+            </div>
+        </div>`
+    y = createHTML(y)
+}
+
+
+/**
+ * 
+ * @param {Array<Object>} details 
+ */
+async function updateAssets(details) {
+    const assets = getAssets(),
+        promises = [];
+
+    assets.map(x => promises.push(_doUpdateListingPage(x, details)))
+    Promise.allSettled(promises)
 }
 
 /**
@@ -286,27 +390,13 @@ function getAssets() {
 }
 
 /**
-  * @param {String} assetNode
+  * @param {HTMLElement} assetNode
  */
 function getAssetCollection(assetNode) {
-    let l = new URL(window.location)
-    let p = l.pathname.split('/')
-    if (l.hostname === "opensea.io" && p.length == 3 & ["assets", 'collection'].includes(p[1])) {
-        parsedCollections = [p[2]]
-    }
-
     let collection = assetNode.getElementsByClassName('AssetCardFooter--collection')
-    collection = collection.length ? collection[0].innerText.replaceAll(' ', '-').toLocaleLowerCase() : ''
-    if (parsedCollections.includes(collection)) { return collection }
-    else {
-        for (let i = 0; i < parsedCollections.length; i++) {
-            const x = parsedCollections[i];
-            if (collection.includes(x)) return x;
-        }
-    }
-
-    if (parsedCollections.length == 1) return parsedCollections[0];
-    return collection
+    collection = collection.length ? collection[0].innerText.trim() : ''
+    let entry = assetCollections.collections.find(x => x.name === collection)
+    if (entry) return entry.id
 }
 
 /**
@@ -375,12 +465,17 @@ async function getAssetPaginator() {
 
 }
 
-async function guide_extract_assets(options) {
+/**
+ * 
+ * @param {HTMLDocument} d 
+ */
+
+async function guide_extract_assets(d) {
     // take first table
     let table = null;
     while (table == null) {
         await sleep(1000)
-        table = document.querySelector('table')
+        table = d.querySelector('table')
     }
 
     // Extract headers
@@ -391,7 +486,7 @@ async function guide_extract_assets(options) {
     )[0]
 
     // Extract project details 
-    const info = document.querySelector("body > section:nth-child(2) > div > nav > ul > li:nth-child(2) > a")
+    const info = d.querySelector("body > section:nth-child(2) > div > nav > ul > li:nth-child(2) > a")
     const infoDetails = {
         project_id: info.href.split("/").pop(),
         project_name: info.innerText.trim()
@@ -411,6 +506,7 @@ async function guide_extract_assets(options) {
             return x.innerText.trim()
         })
     })
+
     rows = rows.map((row) => {
         var c = {};
         for (let i = 0; i < headers.length; i++) {
@@ -481,6 +577,9 @@ async function rairity_extract_assets(options) {
         await sleep(250)
 
     } while (!(parseInt(pageIndicator.value) == parseInt(totalPage)) && parsingState == 1);
-    document.querySelector("#parse_collection").innerText = "PARSE COLLECTION"
+    let btn = document.querySelector("#parse_collection")
+    btn.innerText = "PARSE COLLECTION"
+    btn.setAttribute('state', "0")
+
 
 }
