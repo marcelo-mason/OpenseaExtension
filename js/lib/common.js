@@ -76,20 +76,25 @@ async function setLocalStorage(key, value) {
  * @returns 
  */
 async function loadCollections() {
-    let response = await fetch("https://collections.rarity.tools/static/collections.json", {
-        "headers": {
-            "accept": "application/json, text/plain, */*",
-            "sec-ch-ua": "\"Chromium\";v=\"92\", \" Not A;Brand\";v=\"99\", \"Google Chrome\";v=\"92\"",
-            "sec-ch-ua-mobile": "?0"
-        },
-        "referrer": "https://rarity.tools/",
-        "referrerPolicy": "strict-origin-when-cross-origin",
-        "body": null,
-        "method": "GET",
-        "mode": "cors",
-        "credentials": "omit"
-    })
-    response = await response.json()
-    setLocalStorage('collections', response)
-    return response
+    try {
+        let response = await fetch("https://collections.rarity.tools/static/collections.json", {
+            "headers": {
+                "accept": "application/json, text/plain, */*",
+                "sec-ch-ua": "\"Chromium\";v=\"92\", \" Not A;Brand\";v=\"99\", \"Google Chrome\";v=\"92\"",
+                "sec-ch-ua-mobile": "?0"
+            },
+            "referrer": "https://rarity.tools/",
+            "referrerPolicy": "strict-origin-when-cross-origin",
+            "body": null,
+            "method": "GET",
+            "mode": "cors",
+            "credentials": "omit"
+        })
+        response = await response.json()
+        setLocalStorage('collections', response)
+        return response
+
+    } catch (error) {
+        console.log(error)
+    }
 }

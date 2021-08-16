@@ -107,7 +107,6 @@ function receiveRT_MessageFromExtension(request, sender, sendResponse) {
     }
 }
 
-
 /**
  *
  * @param {*} message
@@ -346,36 +345,46 @@ async function _doUpdateListingPage(assetNode, details) {
 
 // @TODO Complete function
 async function _doUpdateDetailPage(assetNode, details) {
-    let { tokenId, project_name } = getAssetTokenId(assetNode)
-    let collection = getAssetCollection(assetNode)
-
-    if (!tokenId || !collection) return resolve(true);
-
-    let info = details.find(x => findDetail(x, tokenId, collection, project_name))
+    let p, d, t, c, x, y, i
     d = document.querySelector('div[class="item--wrapper"]')
+    if (!d) return false;
+
+    t = d.querySelector('h1[class*="item--title"]')
+    t = t ? t.innerText : ''
+    t = t ? t.match(/#\S+/g) : []
+    t = t.length ? t[0] : null
+
     c = d.querySelector('a[class*="CollectionLink--link"]').href.split('/').pop()
+    if (!t || !c) return false;
+
+    i = details.find(q => findDetail(q, i, c, p))
+    if (!i) return;
+    if (d.querySelector("#rank")) return false;
+
     x = d.querySelector('section[class="item--counts"]')
-    y = `<div style="display: flex;">
+    y = `<div style="display: flex;" id="rank">
             <div>
-                <span style="color: red;">
-                    #6897
+                <span style="font-size: 16px;color: red;">
+                    ${i.rank}
                 </span>
             </div>
         </div>`
-    y = createHTML(y)
+    x.appendChild(createHTML(y))
 }
-
 
 /**
  * 
  * @param {Array<Object>} details 
  */
 async function updateAssets(details) {
-    const assets = getAssets(),
-        promises = [];
+    const assets = getAssets();
+    const promises = [];
 
     assets.map(x => promises.push(_doUpdateListingPage(x, details)))
     Promise.allSettled(promises)
+
+    //_doUpdateDetailPage(null, details);
+
 }
 
 /**
@@ -396,7 +405,8 @@ function getAssetCollection(assetNode) {
     let collection = assetNode.getElementsByClassName('AssetCardFooter--collection')
     collection = collection.length ? collection[0].innerText.trim() : ''
     let entry = assetCollections.collections.find(x => x.name === collection)
-    if (entry) return entry.id
+    if (entry) return entry.id;
+    return collection.toLocaleLowerCase().replaceAll(' ', '-');
 }
 
 /**

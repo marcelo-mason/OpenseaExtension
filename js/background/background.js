@@ -5,6 +5,8 @@ App.extractionTabs = {}
 App.runtimePort = null
 App.running = false
 App.extractedCount = 0
+App.interval = null
+
 
 /**
  * 
@@ -94,7 +96,7 @@ chrome.runtime.onConnect.addListener(function (port) {
                     chrome.tabs.remove(sender.id, function () { })
                     break;
                 case 'TASK_RESULT':
-
+                    // Ensure duplicates are avoided @donc310
                     for (let i = 0; i < message.results.length; i++) {
                         let entry = message.results[i],
                             index = App.extracted.findIndex(x => findIndex(x, entry));
@@ -145,12 +147,12 @@ getLocalStorage('extracted').then(extracted => {
     if (extracted) {
         App.extracted = extracted.filter(x => x)
         App.extractedCount = App.extracted.length
+        App.interval = setInterval(function () {
+            if (App.extracted.length > App.extractedCount) {
+                setLocalStorage("extracted", App.extracted);
+                App.extractedCount = App.extracted.length
+            }
+        },1000)
     }
 })
 loadCollections()
-setTimeout(function () {
-    if(App.extracted.length > App.extractedCount){
-        setLocalStorage("extracted", App.extracted);
-        App.extractedCount = App.extracted.length
-    }
-},1000)
