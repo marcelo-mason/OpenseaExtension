@@ -302,7 +302,7 @@ async function showExtractionBtnRequests() {
  * 
  * @returns {Boolean}
  */
-function findDetail(entry, tokenId, collection, project_name) {
+function findDetail(entry, tokenId, collection, project_name, assetName) {
     if (entry.hasOwnProperty('extras') && project_name) {
         return (
             (entry.tokenId === tokenId) &&
@@ -310,7 +310,12 @@ function findDetail(entry, tokenId, collection, project_name) {
             (entry.extras.project_name.toLocaleLowerCase().trim() === project_name.toLocaleLowerCase().trim())
         );
     }
-    return (entry.tokenId === tokenId && entry.collection === collection)
+    // check if asset token matches 
+    let tokenmatch = (entry.tokenId === tokenId && entry.collection === collection)
+    if (tokenmatch) return true
+
+    // check if asset name matches
+    return (entry.assetName === assetName && entry.collection === collection)
 }
 
 /**
@@ -321,12 +326,11 @@ function findDetail(entry, tokenId, collection, project_name) {
  */
 async function _doUpdateListingPage(assetNode, details) {
     return new Promise((resolve, reject) => {
-        let { tokenId, project_name } = getAssetTokenId(assetNode)
+        let { tokenId, project_name, assetName } = getAssetTokenId(assetNode)
         let collection = getAssetCollection(assetNode)
 
-        if (!tokenId || !collection) return resolve(true);
-
-        let info = details.find(x => findDetail(x, tokenId, collection, project_name))
+        if (!collection || !(tokenId || assetName)) return resolve(true);
+        let info = details.find(x => findDetail(x, tokenId, collection, project_name, assetName))
         if (info) {
             const node = assetNode.getElementsByClassName('AssetCardFooter--collection')[0].parentElement
             const rank = document.createElement('div')
@@ -343,21 +347,27 @@ async function _doUpdateListingPage(assetNode, details) {
     })
 }
 
-// @TODO Complete function
+/**
+ * 
+ * @param {HTMLElement} node 
+*  @param {Array<Object>} details 
+ * @returns 
+ */
 async function _doUpdateDetailPage(assetNode, details) {
-    let p, d, t, c, x, y, i
+    let p, d, t, c, x, y, i, a
     d = document.querySelector('div[class="item--wrapper"]')
     if (!d) return false;
 
     t = d.querySelector('h1[class*="item--title"]')
     t = t ? t.innerText : ''
-    t = t ? t.match(/#\S+/g) : []
+    a = t
+    t = t.match(/#\S+/g) ? match(/#\S+/g) : []
     t = t.length ? t[0] : null
 
     c = d.querySelector('a[class*="CollectionLink--link"]').href.split('/').pop()
-    if (!t || !c) return false;
+    if (!c || !(t || a)) return false;
 
-    i = details.find(q => findDetail(q, i, c, p))
+    i = details.find(q => findDetail(q, i, c, p, a))
     if (!i) return;
     if (d.querySelector("#rank")) return false;
 
@@ -383,7 +393,7 @@ async function updateAssets(details) {
     assets.map(x => promises.push(_doUpdateListingPage(x, details)))
     Promise.allSettled(promises)
 
-    //_doUpdateDetailPage(null, details);
+    _doUpdateDetailPage(null, details);
 
 }
 
@@ -413,10 +423,11 @@ function getAssetCollection(assetNode) {
   * @param {Element} assetNode
  */
 function getAssetTokenId(assetNode) {
-    let tokenId, project_name;
+    let tokenId, project_name, assetName
 
     let infoNode = assetNode.getElementsByClassName('AssetCardFooter--name')
     let info = infoNode.length ? infoNode[0].innerText : ''
+
 
     let parts = info.split(" ")
     if (parts.length > 1) {
@@ -426,8 +437,9 @@ function getAssetTokenId(assetNode) {
     } else {
         tokenId = parts[0]
     }
+    assetName = info
 
-    return { tokenId, project_name }
+    return { tokenId, project_name, assetName }
 }
 
 
@@ -531,6 +543,7 @@ async function guide_extract_assets(d) {
             rank: x.Rank,
             tokenId: x.id,
             collection_prefix: "art-blocks",
+            assetName: null,
             collection: null
         }
     })
@@ -554,26 +567,45 @@ async function rairity_extract_assets(options) {
     const payload = []
 
     do {
+        // @marcelo-mason This is necessary to obtain correct assetNames
+        if (options.collection === "london-gift-v2") {
+            while (document.querySelector('.animate-spin ') != null) {
+                await sleep(1000)
+            }
+        }
+
         const assets = document.querySelectorAll(assetLinkSelector)
         if (!assets.length) break;
         for (let i = 0; i < assets.length; i++) {
 
             const asset = assets[i];
+
             let rarity = ""
             let rank = asset.querySelector(".font-extrabold")
             if (rank) {
                 rank = rank.innerText.split(" ").pop()
             }
-            let tokenId = asset.querySelector('a[href*="opensea.io/assets/"]')
-            if (tokenId) {
-                tokenId = tokenId.innerText.split(" ").pop()
-                tokenId = tokenId.substr(1)
+
+            let tokenId = assetName = null;
+            if (options.collection === "london-gift-v2") {
+                assetName = asset.querySelector('a[href*="opensea.io/assets/"]')
+                if (assetName) {
+                    assetName = assetName.innerText.trim();
+                }
+            } else {
+                tokenId = asset.querySelector('a[href*="opensea.io/assets/"]')
+                if (tokenId) {
+                    tokenId = tokenId.innerText.split(" ").pop()
+                    tokenId = tokenId.substr(1)
+                }
             }
-            if (!rank || !tokenId) continue;
+            if (!rank || !(tokenId || assetName)) continue;
+
             payload.push({
                 rarity,
                 rank,
                 tokenId,
+                assetName,
                 collection: options.collection
             })
         }
@@ -581,13 +613,14 @@ async function rairity_extract_assets(options) {
         await sleep(100)
 
     } while (!(parseInt(pageIndicator.value) == parseInt(totalPage)) && parsingState == 1);
+
     if (payload.length) {
         postMessageToExtension({
             cmd: "TASK_RESULT",
             results: payload
         })
     }
-    
+
     let btn = document.querySelector("#parse_collection")
     btn.innerText = "PARSED"
     btn.setAttribute('state', "0")
