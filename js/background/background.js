@@ -71,7 +71,8 @@ function findIndex(x, entry) {
         return ((entry.extras.project_id === x.extras.project_id) && (x.tokenId === entry.tokenId))
     }
     if (x.collection != null && entry.collection != null) {
-        return ((x.collection === entry.collection) && (x.tokenId === entry.tokenId))
+        if (x.tokenId != null) return ((x.collection === entry.collection) && (x.tokenId === entry.tokenId))
+        if (x.assetName != null) return ((x.collection === entry.collection) && (x.assetName === entry.assetName))
     }
     return false
 }
@@ -147,12 +148,15 @@ getLocalStorage('extracted').then(extracted => {
     if (extracted) {
         App.extracted = extracted.filter(x => x)
         App.extractedCount = App.extracted.length
-        App.interval = setInterval(function () {
-            if (App.extracted.length > App.extractedCount) {
-                setLocalStorage("extracted", App.extracted);
-                App.extractedCount = App.extracted.length
-            }
-        },1000)
+    } else {
+        App.extracted = []
+        App.extractedCount = 0
     }
+    App.interval = setInterval(function () {
+        if (App.extracted.length != App.extractedCount) {
+            setLocalStorage("extracted", App.extracted);
+            App.extractedCount = App.extracted.length
+        }
+    }, 1000)
 })
 loadCollections()

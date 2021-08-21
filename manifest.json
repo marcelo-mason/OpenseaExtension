@@ -7,12 +7,11 @@
         "webNavigation",
         "tabs",
         "activeTab",
-        "notifications",
         "storage",
         "unlimitedStorage",
         "*://opensea.io/*",
-        "*://rarity.tools/*"
-
+        "*://rarity.tools/*",
+        "*://rarity.guide/*"
     ],
     "browser_action": {
         "browser_style": false,
@@ -41,10 +40,11 @@
             ],
             "matches": [
                 "*://opensea.io/*",
-                "http://*/*",
-                "https://*/*"
+                "*://rarity.tools/*",
+                "*://rarity.guide/*",
+                "*://collections.rarity.tools/*"
             ],
-            "run_at": "document_start",
+            "run_at": "document_idle",
             "all_frames": true
         }
     ],
@@ -55,6 +55,6 @@
         "128": "images/capture-128x.png"
     },
     "manifest_version": 2,
-    "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
+    "content_security_policy": "script-src 'self'; object-src 'self'",
     "web_accessible_resources": []
 }
