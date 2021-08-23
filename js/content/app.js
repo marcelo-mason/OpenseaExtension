@@ -361,13 +361,14 @@ async function _doUpdateDetailPage(assetNode, details) {
     t = d.querySelector('h1[class*="item--title"]')
     t = t ? t.innerText : ''
     a = t
-    t = t.match(/#\S+/g) ? match(/#\S+/g) : []
+    t = t.match(/#\S+/g) ? t.match(/#\S+/g) : []
     t = t.length ? t[0] : null
-
+    if (t) t = t.split("#")[1];
+    
     c = d.querySelector('a[class*="CollectionLink--link"]').href.split('/').pop()
     if (!c || !(t || a)) return false;
 
-    i = details.find(q => findDetail(q, i, c, p, a))
+    i = details.find(q => findDetail(q, t, c, p, a))
     if (!i) return;
     if (d.querySelector("#rank")) return false;
 
