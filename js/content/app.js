@@ -83,7 +83,9 @@ async function afterWindowLoaded() {
                 showExtractionBtnRank(current_path[0])
             }
             break;
-
+        case "app.ai42.art":
+            showExtractionBtnAI42()
+            break;
         default:
             break;
     }
@@ -295,6 +297,104 @@ async function showExtractionBtnRequests() {
 
 /**
  * 
+ * @param {HTMLDocument} doc
+ * @param {String} tokenId
+ */
+function extractRarityA142(doc, tokenId) {
+    const rarity = doc.querySelector('table[class="table"] tr:last-child td:nth-child(2)').innerText.split(" ")[0]
+    return {
+        rank: rarity,
+        rarity,
+        assetName: null,
+        tokenId,
+        collection: "ai42-loops"
+    }
+}
+/**
+ * 
+ * @param {String} tokenId 
+ * @param {DOMParser} parser 
+ */
+async function extractRarityRequestA142(tokenId, parser) {
+    return new Promise((resole, reject) => {
+        fetch(`https://app.ai42.art/page_detail.php?loopid=${tokenId}`).then(
+            response => {
+                if (response.redirected) return reject("Request Redirected");
+                return response.text()
+            })
+            .then(async text => {
+                const doc = parser.parseFromString(text, 'text/html');
+                const details = extractRarityA142(doc, tokenId)
+                resole(details)
+            })
+            .catch(e => reject(e))
+    })
+}
+/**
+ * 
+ * @param {String} previous 
+ * @returns 
+ */
+function getA142ID(previous = null) {
+    if (previous === "10101") return null;
+    if (previous == null) return "00001";
+    let a = parseInt(previous)
+    return Array((5 - String(parseInt(a)).length)).fill(0).join('') + `${parseInt(a) + 1}`
+
+}
+async function showExtractionBtnAI42() {
+    let strAnchor = `<li class="nav-item">
+                        <a class="nav-link" href="account" span="">Parse Rarity</span></a> 
+                    </li>`,
+        elemAnchor = createHTML(strAnchor), a = elemAnchor.querySelector('a'),
+        elemNavbar = document.querySelector("ul[class='navbar-nav mr-auto']"),
+        parser = new DOMParser();
+
+    a.setAttribute("state", "0")
+    a.addEventListener('click', async function (event) {
+        event.preventDefault();
+        if (a.getAttribute("state") === "1") return;
+
+        a.setAttribute("state", "1")
+        let payload = []
+        let startToken = getA142ID()
+
+        while (startToken != null) {
+            try {
+                a.innerText = `Parsing ID:${startToken}`
+                let result = await extractRarityRequestA142(startToken, parser)
+                payload.push(result)
+                startToken = getA142ID(startToken)
+                await sleep(100)
+
+                // Store results in batches
+                if (payload.length > 500) {
+                    postMessageToExtension({
+                        cmd: "TASK_RESULT",
+                        results: payload
+                    })
+                    payload = []
+                }
+            } catch (e) {
+                console.log(e)
+                break
+            }
+        }
+
+        if (payload.length) {
+            postMessageToExtension({
+                cmd: "TASK_RESULT",
+                results: payload
+            })
+        }
+        a.setAttribute("state", "0")
+        a.innerText = "Parsed"
+    })
+
+    elemNavbar.appendChild(elemAnchor)
+}
+/**
+ * 
  * @param {Object} entry
  * @param {String} tokenId 
  * @param {String} collection 
@@ -364,7 +464,7 @@ async function _doUpdateDetailPage(assetNode, details) {
     t = t.match(/#\S+/g) ? t.match(/#\S+/g) : []
     t = t.length ? t[0] : null
     if (t) t = t.split("#")[1];
-    
+
     c = d.querySelector('a[class*="CollectionLink--link"]').href.split('/').pop()
     if (!c || !(t || a)) return false;
 
@@ -492,7 +592,6 @@ async function getAssetPaginator() {
  * 
  * @param {HTMLDocument} d 
  */
-
 async function guide_extract_assets(d) {
     // take first table
     let table = null;

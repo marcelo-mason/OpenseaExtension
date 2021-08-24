@@ -11,7 +11,8 @@
         "unlimitedStorage",
         "*://opensea.io/*",
         "*://rarity.tools/*",
-        "*://rarity.guide/*"
+        "*://rarity.guide/*",
+        "*://app.ai42.art/*"
     ],
     "browser_action": {
         "browser_style": false,
@@ -42,7 +43,9 @@
                 "*://opensea.io/*",
                 "*://rarity.tools/*",
                 "*://rarity.guide/*",
-                "*://collections.rarity.tools/*"
+                "*://collections.rarity.tools/*",
+                "*://app.ai42.art/*"
+
             ],
             "run_at": "document_idle",
             "all_frames": true
