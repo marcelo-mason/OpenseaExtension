@@ -38,8 +38,7 @@ var parsedCollections = [],
             lookup: {}
         }
     },
-    parsingState = 0
-
+    parsingState = 0;
 
 
 /**
@@ -91,19 +90,20 @@ async function afterWindowLoaded() {
     }
 }
 
-
 /**
  *
  * @param {*} request
  * @param {*} sender
  * @param {*} sendResponse
  */
-function receiveRT_MessageFromExtension(request, sender, sendResponse) {
+async function receiveRT_MessageFromExtension(request, sender, sendResponse) {
     sendResponse && sendResponse({ received: true });
     if (!request.messageFromZYX) return;
     switch (request.cmd) {
         case "TOKENS":
+            debug(`Recieved Asset payload. asset count: ${request.extracted.length}`)
             updateAssets(request.extracted)
+            break;
         default:
             break;
     }
@@ -163,6 +163,7 @@ function createHTML(string) {
     e.appendChild(f);
     return e.firstElementChild
 }
+
 /**
  * 
  * @param {*} collection 
@@ -342,6 +343,7 @@ function getA142ID(previous = null) {
     return Array((5 - String(parseInt(a)).length)).fill(0).join('') + `${parseInt(a) + 1}`
 
 }
+/** */
 async function showExtractionBtnAI42() {
     let strAnchor = `<li class="nav-item">
                         <a class="nav-link" href="account" span="">Parse Rarity</span></a> 
@@ -393,6 +395,7 @@ async function showExtractionBtnAI42() {
 
     elemNavbar.appendChild(elemAnchor)
 }
+
 /**
  * 
  * @param {Object} entry
@@ -454,16 +457,27 @@ async function _doUpdateListingPage(assetNode, details) {
  * @returns 
  */
 async function _doUpdateDetailPage(assetNode, details) {
-    let p, d, t, c, x, y, i, a
+    let p, d, t, c, x, y, i, a, a_i
     d = document.querySelector('div[class="item--wrapper"]')
     if (!d) return false;
 
     t = d.querySelector('h1[class*="item--title"]')
     t = t ? t.innerText : ''
     a = t
+
     t = t.match(/#\S+/g) ? t.match(/#\S+/g) : []
     t = t.length ? t[0] : null
-    if (t) t = t.split("#")[1];
+    if (t) { t = t.split("#")[1]; }
+    else {
+        a_i = Array.from(document.querySelectorAll('div[class="ChainInfo--label"]')).map(x => {
+            return {
+                prop: x.querySelector('.ChainInfo--label-type').innerText,
+                value: x.querySelector('.ChainInfo--label-value').innerText
+            }
+        })
+        a_i = a_i.find(x => x.prop === 'Token ID')
+        if (a_i) t = a_i.value;
+    }
 
     c = d.querySelector('a[class*="CollectionLink--link"]').href.split('/').pop()
     if (!c || !(t || a)) return false;
@@ -491,10 +505,12 @@ async function updateAssets(details) {
     const assets = getAssets();
     const promises = [];
 
+    debug(`Updating Assets`);
     assets.map(x => promises.push(_doUpdateListingPage(x, details)))
     Promise.allSettled(promises)
 
     _doUpdateDetailPage(null, details);
+    debug("Assets Updated")
 
 }
 
@@ -661,16 +677,22 @@ async function guide_extract_assets(d) {
  */
 async function rairity_extract_assets(options) {
     const assetLinkSelector = "#__layout > div > div.flex-1.overflow-hidden.lg\\:flex.lg\\:flex-row.bg > div.bg.max-h-full.px-0\\.5.lg\\:px-2.text-lg.textColor600.bg-white.lg\\:overflow-y-scroll.lg\\:flex-grow.scrollColor > div.flex.flex-row.items-start.justify-between > div.flex.flex-row.flex-wrap.justify-start.px-1.py-2.pt-1.ml-4.lg\\:px-2 > div"
+    debug(`Starting Rairity Extraction`);
 
     let { pageIndicator, totalPage, nextSelector } = await getAssetPaginator()
     if (!pageIndicator) return;
     const payload = []
 
     do {
+        debug(`Extracting Rarity Page:${pageIndicator.value}`);
         // @marcelo-mason This is necessary to obtain correct assetNames
+        let t = 0
         if (options.collection === "london-gift-v2") {
             while (document.querySelector('.animate-spin ') != null) {
+                if (t == 50) break;
                 await sleep(1000)
+                t += 1
+
             }
         }
 
@@ -724,6 +746,9 @@ async function rairity_extract_assets(options) {
     let btn = document.querySelector("#parse_collection")
     btn.innerText = "PARSED"
     btn.setAttribute('state', "0")
+    debug(`Stopping Rairity Extraction`);
+
 
 
 }
+
