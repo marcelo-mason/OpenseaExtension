@@ -1,3 +1,4 @@
+var enableDebug =true;
 var parseQuery = (function (d, x, params, p, i, j) {
     /**
      * 
@@ -97,4 +98,7 @@ async function loadCollections() {
     } catch (error) {
         console.log(error)
     }
+}
+function debug(msg) {
+    enableDebug && console.log(msg);
 }

@@ -101,11 +101,15 @@ chrome.runtime.onConnect.addListener(function (port) {
                     for (let i = 0; i < message.results.length; i++) {
                         let entry = message.results[i],
                             index = App.extracted.findIndex(x => findIndex(x, entry));
+
+                        // previous approach of filtering for every entry is'n effective 
                         if (index > -1) {
-                            App.extracted = App.extracted.filter((_, i) => i != index)
+                            delete App.extracted[index]
                         }
                         App.extracted.push(entry)
                     }
+                    // Filter undefined entries
+                    App.extracted = App.extracted.filter(x => x)
                     sendExtractedResults()
                     break;
                 case 'NEW_TASK':
@@ -154,6 +158,7 @@ getLocalStorage('extracted').then(extracted => {
     }
     App.interval = setInterval(function () {
         if (App.extracted.length != App.extractedCount) {
+            debug("Updating Stored values")
             setLocalStorage("extracted", App.extracted);
             App.extractedCount = App.extracted.length
         }
