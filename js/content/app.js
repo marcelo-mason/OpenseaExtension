@@ -38,7 +38,8 @@ var parsedCollections = [],
             lookup: {}
         }
     },
-    parsingState = 0;
+    parsingState = 0,
+    assets = [];
 
 
 /**
@@ -101,8 +102,9 @@ async function receiveRT_MessageFromExtension(request, sender, sendResponse) {
     if (!request.messageFromZYX) return;
     switch (request.cmd) {
         case "TOKENS":
-            debug(`Recieved Asset payload. asset count: ${request.extracted.length}`)
-            updateAssets(request.extracted)
+            debug(`Recieved Asset payload. Asset count: ${request.extracted.length}`)
+            assets = request.extracted;
+            updateAssets()
             break;
         default:
             break;
@@ -331,6 +333,7 @@ async function extractRarityRequestA142(tokenId, parser) {
             .catch(e => reject(e))
     })
 }
+
 /**
  * 
  * @param {String} previous 
@@ -343,6 +346,7 @@ function getA142ID(previous = null) {
     return Array((5 - String(parseInt(a)).length)).fill(0).join('') + `${parseInt(a) + 1}`
 
 }
+
 /** */
 async function showExtractionBtnAI42() {
     let strAnchor = `<li class="nav-item">
@@ -424,16 +428,15 @@ function findDetail(entry, tokenId, collection, project_name, assetName) {
 /**
  * 
  * @param {HTMLElement} node 
-*  @param {Array<Object>} details 
  * @returns 
  */
-async function _doUpdateListingPage(assetNode, details) {
+async function _doUpdateListingPage(assetNode) {
     return new Promise((resolve, reject) => {
         let { tokenId, project_name, assetName } = getAssetTokenId(assetNode)
         let collection = getAssetCollection(assetNode)
 
         if (!collection || !(tokenId || assetName)) return resolve(true);
-        let info = details.find(x => findDetail(x, tokenId, collection, project_name, assetName))
+        let info = assets.find(x => findDetail(x, tokenId, collection, project_name, assetName))
         if (info) {
             const node = assetNode.getElementsByClassName('AssetCardFooter--collection')[0].parentElement
             const rank = document.createElement('div')
@@ -452,11 +455,10 @@ async function _doUpdateListingPage(assetNode, details) {
 
 /**
  * 
- * @param {HTMLElement} node 
-*  @param {Array<Object>} details 
  * @returns 
  */
-async function _doUpdateDetailPage(assetNode, details) {
+async function _doUpdateDetailPage() {
+    debug("Updating Asset page")
     let p, d, t, c, x, y, i, a, a_i
     d = document.querySelector('div[class="item--wrapper"]')
     if (!d) return false;
@@ -482,7 +484,7 @@ async function _doUpdateDetailPage(assetNode, details) {
     c = d.querySelector('a[class*="CollectionLink--link"]').href.split('/').pop()
     if (!c || !(t || a)) return false;
 
-    i = details.find(q => findDetail(q, t, c, p, a))
+    i = assets.find(q => findDetail(q, t, c, p, a))
     if (!i) return;
     if (d.querySelector("#rank")) return false;
 
@@ -495,21 +497,21 @@ async function _doUpdateDetailPage(assetNode, details) {
             </div>
         </div>`
     x.appendChild(createHTML(y))
+    debug("Asset page updated")
 }
 
 /**
  * 
- * @param {Array<Object>} details 
  */
-async function updateAssets(details) {
-    const assets = getAssets();
-    const promises = [];
+async function updateAssets() {
+    let _assets = getAssets();
+    let promises = [];
 
     debug(`Updating Assets`);
-    assets.map(x => promises.push(_doUpdateListingPage(x, details)))
+    _assets.map(x => promises.push(_doUpdateListingPage(x)))
     Promise.allSettled(promises)
 
-    _doUpdateDetailPage(null, details);
+    await _doUpdateDetailPage();
     debug("Assets Updated")
 
 }
@@ -519,10 +521,9 @@ async function updateAssets(details) {
  * @returns {Array<HTMLElement>}
  */
 function getAssets() {
-    const assets = Array.from(
+    return Array.from(
         document.querySelectorAll('.Asset--loaded')
     )
-    return assets
 }
 
 /**
@@ -566,9 +567,7 @@ function getAssetTokenId(assetNode) {
  */
 function registerAssetDetection() {
     document.arrive('.Asset--loaded', function () {
-        postMessageToExtension({
-            cmd: "ASSET_LOADED"
-        })
+        _doUpdateListingPage(this)
     });
 }
 

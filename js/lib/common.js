@@ -100,5 +100,5 @@ async function loadCollections() {
     }
 }
 function debug(msg) {
-    enableDebug && console.log(msg);
+    enableDebug && console.log(`${new Date().toISOString()}: ${msg}`);
 }
