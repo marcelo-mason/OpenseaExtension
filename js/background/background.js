@@ -97,20 +97,24 @@ chrome.runtime.onConnect.addListener(function (port) {
                     chrome.tabs.remove(sender.id, function () { })
                     break;
                 case 'TASK_RESULT':
+                    debug("Updating stored assets")
                     // Ensure duplicates are avoided @donc310
                     for (let i = 0; i < message.results.length; i++) {
                         let entry = message.results[i],
                             index = App.extracted.findIndex(x => findIndex(x, entry));
 
-                        // previous approach of filtering for every entry is'n effective 
+                        // previous approach of filtering for every entry is'nt effective 
                         if (index > -1) {
+                            // delete old entry
                             delete App.extracted[index]
                         }
+                        // Append new entry
                         App.extracted.push(entry)
                     }
                     // Filter undefined entries
                     App.extracted = App.extracted.filter(x => x)
                     sendExtractedResults()
+                    debug("Storage updated")
                     break;
                 case 'NEW_TASK':
                     sendExtractedResults()
