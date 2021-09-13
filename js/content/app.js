@@ -1,3 +1,8 @@
+/**
+ * An assest
+ * @typedef {{rarity:String, assetId: String, rank: String ,assetName:String , assetCollection:String}} Asset
+ */
+
 var agent = {
     port: null,
     hasNoError: false,
@@ -43,7 +48,7 @@ var parsedCollections = [],
 
 
 /**
- * 
+ * @returns 
  */
 async function afterWindowLoaded() {
     let location = new URL(window.location)
@@ -61,9 +66,10 @@ async function afterWindowLoaded() {
                 current_path.length == 2 &&
                 current_path[0] === "collection" &&
                 isCollection(current_path[1])
-
             ) {
                 showOpenRarityBtn(current_path[1])
+            } else if (current_path.length == 2) {
+                runCustomCollectionCheck(current_path[1])
             }
             break;
         case "rarity.tools":
@@ -123,6 +129,101 @@ function postMessageToExtension(message, callback = null) {
 }
 
 /**
+ * `This` in callbacks is the nav element , this helps for the callback to manipulate the 
+ * DOM
+ */
+async function fetchGenArtCollections() {
+    const apiURL = 'https://api.gen.art/public/ranking'
+
+    let pageSize = 100, stop = false, maxCollectionIndex = 2, _extracted = 0;
+    let { start,
+        currentCollectionIndex,
+    } = await getLocalStorage('genArtCollection', { start: 0, currentCollectionIndex: 1 })
+    while (!stop) {
+        try {
+            if (currentCollectionIndex > maxCollectionIndex) break;
+            this.querySelector('h3').innerText = `Extracting ${currentCollectionIndex}=>${start}`;
+
+            let request = await fetch(`${apiURL}/${currentCollectionIndex}?_start=${start}&_limit=${pageSize}`)
+            request = await request.json()
+
+            if (Array.isArray(request)) {
+                if (request.length === 0) {
+                    currentCollectionIndex += 1
+                    start = 0;
+                }
+                let results = []
+                for (let i = 0; i < request.length; i++) {
+                    const asset = request[i];
+                    results.push({
+                        rank: asset.rank,
+                        tokenId: asset.token.tokenId,
+                        assetName: asset.token.name,
+                        collection: 'gen-art-collection',
+                        rarity: ''
+                    })
+                    _extracted += 1
+                }
+                start += pageSize
+                await sleep(2000)
+                postMessageToExtension({
+                    cmd: "TASK_RESULT",
+                    results
+                })
+            }
+            else break;
+        } catch (error) {
+            console.log(error)
+            stop = true
+            setLocalStorage('genArtCollection', { start, currentCollectionIndex })
+        }
+    }
+    this.querySelector('h3').innerText = `Extracted ${_extracted} Assets`;
+
+}
+
+function createBtn(text, link) {
+    return createHTML(`<div class="Blockreact__Block-sc-1xf18x6-0 InfoItemreact__BlockContainer-sc-gubhmc-0 ctiaqU dlchsV">
+                    <a href="${link}" target="_blank" class="styles__StyledLink-sc-l6elh8-0 cnTbOd">
+                        <div class="Blockreact__Block-sc-1xf18x6-0 Flexreact__Flex-sc-1twd32i-0 InfoItemreact__Container-sc-gubhmc-1 ctiaqU jYqxGr dLEHkN CollectionStatsBar--info CollectionStatsBar--bottom-bordered">
+                            <div class="Blockreact__Block-sc-1xf18x6-0 Flexreact__Flex-sc-1twd32i-0 ctiaqU jYqxGr Info--icon">
+                            <h3  style="font-size: 16px;color: red;" class="Blockreact__Block-sc-1xf18x6-0 Textreact__Text-sc-1w94ul3-0 iKSQyx kscHgv">
+                                ${text}
+                            </h3>
+                            </div>
+                            <div font-size="14px" class="Blockreact__Block-sc-1xf18x6-0 iWVssO"></div>
+                        </div>
+                    </a>
+        </div>`)
+}
+
+async function runCustomCollectionCheck(collection) {
+    let infoDiv = null
+    while (infoDiv == null) {
+        await sleep(1000)
+        infoDiv = document.querySelector('div[class*="InfoContainerreact__InfoContainer"]')
+    }
+    /**
+     * @type {Function} callback
+     */
+    let callback
+    let text
+    if (collection === "gen-art-collection") {
+        text = "Extract Gen-Art-collections"
+        callback = fetchGenArtCollections
+    }
+
+    if (text && callback) {
+        const template = createBtn(text, '#')
+        infoDiv.appendChild(template)
+        template.querySelector('a').addEventListener('click', function (event) {
+            event.preventDefault()
+            callback.call(template)
+        })
+    }
+}
+
+/**
  * 
  * @param {String} collection 
  */
@@ -132,14 +233,7 @@ async function showOpenRarityBtn(collection) {
         await sleep(1000)
         infoDiv = document.querySelector('div[class*="InfoContainerreact__InfoContainer"]')
     }
-    const template = infoDiv.querySelector('div').cloneNode(1)
-
-    template.querySelector('div[font-size="14px"]').innerText = ''
-    template.querySelector('h3').innerText = "Open on rarity"
-    const a = template.querySelector('a')
-    a.href = `https://rarity.tools/${collection}`
-    a.setAttribute('target', '_blank')
-
+    const template = createBtn("Open on rarity", `https://rarity.tools/${collection}`)
     infoDiv.appendChild(template)
 
 }
@@ -300,8 +394,10 @@ async function showExtractionBtnRequests() {
 
 /**
  * 
- * @param {HTMLDocument} doc
+ * @param {Document} doc
  * @param {String} tokenId
+ * 
+ * @returns Asset
  */
 function extractRarityA142(doc, tokenId) {
     const rarity = doc.querySelector('table[class="table"] tr:last-child td:nth-child(2)').innerText.split(" ")[0]
@@ -319,7 +415,7 @@ function extractRarityA142(doc, tokenId) {
  * @param {DOMParser} parser 
  */
 async function extractRarityRequestA142(tokenId, parser) {
-    return new Promise((resole, reject) => {
+    return new Promise((resolve, reject) => {
         fetch(`https://app.ai42.art/page_detail.php?loopid=${tokenId}`).then(
             response => {
                 if (response.redirected) return reject("Request Redirected");
@@ -328,7 +424,7 @@ async function extractRarityRequestA142(tokenId, parser) {
             .then(async text => {
                 const doc = parser.parseFromString(text, 'text/html');
                 const details = extractRarityA142(doc, tokenId)
-                resole(details)
+                resolve(details)
             })
             .catch(e => reject(e))
     })
@@ -343,16 +439,17 @@ function getA142ID(previous = null) {
     if (previous === "10101") return null;
     if (previous == null) return "00001";
     let a = parseInt(previous)
-    return Array((5 - String(parseInt(a)).length)).fill(0).join('') + `${parseInt(a) + 1}`
+    return Array((5 - String(a).length)).fill(0).join('') + `${a + 1}`
 
 }
 
 /** */
 async function showExtractionBtnAI42() {
     let strAnchor = `<li class="nav-item">
-                        <a class="nav-link" href="account" span="">Parse Rarity</span></a> 
+                        <a class="nav-link" href="#" span="">Parse Rarity</span></a> 
                     </li>`,
-        elemAnchor = createHTML(strAnchor), a = elemAnchor.querySelector('a'),
+        elemAnchor = createHTML(strAnchor),
+        a = elemAnchor.querySelector('a'),
         elemNavbar = document.querySelector("ul[class='navbar-nav mr-auto']"),
         parser = new DOMParser();
 
@@ -427,7 +524,7 @@ function findDetail(entry, tokenId, collection, project_name, assetName) {
 
 /**
  * 
- * @param {HTMLElement} node 
+ * @param {HTMLElement} assetNode 
  * @returns 
  */
 async function _doUpdateListingPage(assetNode) {
@@ -437,13 +534,18 @@ async function _doUpdateListingPage(assetNode) {
 
         if (!collection || !(tokenId || assetName)) return resolve(true);
         let info = assets.find(x => findDetail(x, tokenId, collection, project_name, assetName))
+
         if (info) {
-            const node = assetNode.getElementsByClassName('AssetCardFooter--collection')[0].parentElement
+            let node = assetNode.getElementsByClassName('AssetCardFooter--collection');
+            if (!node.length) node = assetNode.getElementsByClassName('AssetCardFooter--annotations');
+            if (!node.length) return resolve(true);
+
+            node = node[0].parentElement
             const rank = document.createElement('div')
 
             rank.innerText = info.rank
             rank.classList.add("AssetCardFooter--name")
-            rank.style.cssText = "font-size: 16px; color: red;"
+            rank.style.cssText = "font-size: 16px; color: red; padding-bottom: 60px;"
 
             rank.setAttribute('id', "rank")
             x = node.querySelector('#rank')
@@ -531,10 +633,19 @@ function getAssets() {
  */
 function getAssetCollection(assetNode) {
     let collection = assetNode.getElementsByClassName('AssetCardFooter--collection')
-    collection = collection.length ? collection[0].innerText.trim() : ''
-    let entry = assetCollections.collections.find(x => x.name === collection)
-    if (entry) return entry.id;
-    return collection.toLocaleLowerCase().replaceAll(' ', '-');
+    if (collection.length) {
+        collection = collection.length ? collection[0].innerText.trim() : ''
+        let entry = assetCollections.collections.find(x => x.name === collection)
+        if (entry) return entry.id;
+    }
+    else {
+        let collectionNameNodes = assetNode.getElementsByClassName('AssetCardFooter--collection-name')
+        if (collectionNameNodes.length) {
+            let collectionLink = new URL(collectionNameNodes[0].href)
+            return collectionLink.pathname.split("/").filter(x => x.length).pop()
+        }
+    }
+    return ""
 }
 
 /**
@@ -605,7 +716,7 @@ async function getAssetPaginator() {
 
 /**
  * 
- * @param {HTMLDocument} d 
+ * @param {Document} d 
  */
 async function guide_extract_assets(d) {
     // take first table
@@ -680,6 +791,10 @@ async function rairity_extract_assets(options) {
 
     let { pageIndicator, totalPage, nextSelector } = await getAssetPaginator()
     if (!pageIndicator) return;
+
+    /**
+     * @type Array<Asset>
+     */
     const payload = []
 
     do {
