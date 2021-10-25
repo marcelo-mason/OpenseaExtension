@@ -182,6 +182,13 @@ async function fetchGenArtCollections() {
 
 }
 
+/**
+ * Create a menu button for OpenSea.io
+ * 
+ * @param {String} text 
+ * @param {String} link 
+ * @returns {Element}
+ */
 function createBtn(text, link) {
     return createHTML(`<div class="Blockreact__Block-sc-1xf18x6-0 InfoItemreact__BlockContainer-sc-gubhmc-0 ctiaqU dlchsV">
                     <a href="${link}" target="_blank" class="styles__StyledLink-sc-l6elh8-0 cnTbOd">
@@ -197,6 +204,12 @@ function createBtn(text, link) {
         </div>`)
 }
 
+/**
+ * Perform a custom implementation for colections not available 
+ * in the collection
+ * 
+ * @param {String} collection 
+ */
 async function runCustomCollectionCheck(collection) {
     let infoDiv = null
     while (infoDiv == null) {
@@ -361,7 +374,7 @@ async function extractRairityRequest(link, parser) {
  */
 async function showExtractionBtnRequests() {
     const btn = document.createElement("button")
-    const div = document.querySelector("body > section:nth-child(4) > div")
+    const div = document.querySelector("body > section:nth-child(5) > div")
     const arrayId = Array.from(div.querySelectorAll('table>tbody>tr')).map(tr => tr.querySelector('td').innerText)
     const parser = new DOMParser();
 
